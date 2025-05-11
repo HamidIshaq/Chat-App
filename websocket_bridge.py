@@ -224,16 +224,25 @@ def client_communication_handler(client_socket, websocket):
         client_socket.close()
 
 # Start the secure chat server
+
 def start_server():
+    global server_thread
     try:
-        # Import your server implementation
-        from secure_chat_server import start_server
+        # Check if server is already running by attempting to connect
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            result = s.connect_ex(('localhost', 12345))
+            if result == 0:
+                print("Server is already running")
+                return True
         
-        # Start the server in a separate thread
-        server_thread = threading.Thread(target=start_server)
+        # Import and start the server if not running
+        from secure_chat_server import start_server as secure_start_server
+        server_thread = threading.Thread(target=secure_start_server)
         server_thread.daemon = True
         server_thread.start()
         
+        # Wait briefly to ensure server starts
+        time.sleep(1)
         print("Server started successfully")
         return True
     except Exception as e:

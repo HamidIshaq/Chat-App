@@ -4,12 +4,13 @@ import time
 from flask import Flask, send_from_directory, request, jsonify
 import asyncio
 import websockets
+import socket
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Global variables to track server state
-server_process = None
+server_thread = None
 websocket_server = None
 
 @app.route('/')
@@ -22,22 +23,35 @@ def client():
 
 @app.route('/start_server', methods=['POST'])
 def start_server_endpoint():
-    # Start the secure chat server in a separate thread
-    from secure_chat_server import start_server
-    
-    server_thread = threading.Thread(target=start_server)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    # Give it a moment to start
-    time.sleep(1)
-    
-    return jsonify({"status": "success"})
+    global server_thread
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            result = s.connect_ex(('localhost', 12345))
+            if result == 0:
+                return jsonify({"status": "success", "message": "Server is already running"})
+        
+        from secure_chat_server import start_server
+        server_thread = threading.Thread(target=start_server)
+        server_thread.daemon = True
+        server_thread.start()
+        
+        time.sleep(1)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/stop_server', methods=['POST'])
 def stop_server_endpoint():
-    # This would require modifying your server code to have a clean shutdown method
-    return jsonify({"status": "success"})
+    global server_thread
+    try:
+        from secure_chat_server import stop_server
+        stop_server()
+        if server_thread:
+            server_thread.join(timeout=2.0)
+            server_thread = None
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 # WebSocket server for browser communication
 async def websocket_handler(websocket, path):
@@ -45,17 +59,13 @@ async def websocket_handler(websocket, path):
     await bridge_handler(websocket, path)
 
 def start_websocket_server():
-    # Create a new event loop for the websocket server
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    # Start the websocket server
     start_server = websockets.serve(websocket_handler, "localhost", 8765)
     loop.run_until_complete(start_server)
     loop.run_forever()
 
 if __name__ == "__main__":
-    # Make sure HTML files exist
     if not os.path.exists("server.html"):
         with open("server.html", "w") as f:
             f.write("""<!DOCTYPE html>
@@ -63,7 +73,6 @@ if __name__ == "__main__":
 <head>
     <meta charset="UTF-8">
     <title>Secure Chat Server</title>
-    <!-- Page will be replaced with full server.html content -->
     <meta http-equiv="refresh" content="0;url=/">
 </head>
 <body>
@@ -78,7 +87,6 @@ if __name__ == "__main__":
 <head>
     <meta charset="UTF-8">
     <title>Secure Chat Client</title>
-    <!-- Page will be replaced with full client.html content -->
     <meta http-equiv="refresh" content="0;url=/client">
 </head>
 <body>
@@ -86,10 +94,8 @@ if __name__ == "__main__":
 </body>
 </html>""")
 
-    # Start WebSocket server in a separate thread
     websocket_thread = threading.Thread(target=start_websocket_server)
     websocket_thread.daemon = True
     websocket_thread.start()
     
-    # Start Flask app
     app.run(host='localhost', port=5000, debug=True, use_reloader=False)
