@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat Client</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #3498db;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+        }
+        .status-bar {
+            background-color: #ecf0f1;
+            padding: 10px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-indicator.online {
+            background-color: #2ecc71;
+        }
+        .auth-container, .chat-container {
+            padding: 20px;
+        }
+        .chat-container {
+            display: none;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .auth-toggle {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .auth-toggle a {
+            color: #3498db;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .auth-toggle a:hover {
+            text-decoration: underline;
+        }
+        .chat-area {
+            height: 400px;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+        .client-message {
+            background-color: #3498db;
+            color: white;
+            margin-left: auto;
+        }
+        .server-message {
+            background-color: #ecf0f1;
+            border: 1px solid #ddd;
+        }
+        .input-area {
+            display: flex;
+            padding: 15px 0;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .email-field {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Secure Chat Client</h1>
+        </div>
+        <div class="status-bar">
+            <div>
+                <span class="status-indicator" id="status-light"></span>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+        
+        <!-- Authentication Container -->
+        <div class="auth-container" id="auth-container">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter your username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter your password">
+            </div>
+            <div class="form-group email-field" id="email-field">
+                <label for="email">Email:</label>
+                <input type="email" id="email" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <button id="auth-button">Login</button>
+            </div>
+            <div class="auth-toggle">
+                <span id="auth-toggle-text">Don't have an account?</span> 
+                <a id="auth-toggle-link">Register</a>
+            </div>
+        </div>
+        
+        <!-- Chat Container -->
+        <div class="chat-container" id="chat-container">
+            <div class="chat-area" id="messages-container">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Type your message...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let isLoginMode = true;
+        
+        const statusLight = document.getElementById('status-light');
+        const statusText = document.getElementById('status-text');
+        const authContainer = document.getElementById('auth-container');
+        const chatContainer = document.getElementById('chat-container');
+        const authButton = document.getElementById('auth-button');
+        const authToggleLink = document.getElementById('auth-toggle-link');
+        const authToggleText = document.getElementById('auth-toggle-text');
+        const emailField = document.getElementById('email-field');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const emailInput = document.getElementById('email');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const messagesContainer = document.getElementById('messages-container');
+
+        // Toggle between login and register modes
+        authToggleLink.addEventListener('click', function() {
+            isLoginMode = !isLoginMode;
+            
+            if (isLoginMode) {
+                authButton.textContent = 'Login';
+                authToggleText.textContent = "Don't have an account?";
+                authToggleLink.textContent = 'Register';
+                emailField.style.display = 'none';
+            } else {
+                authButton.textContent = 'Register';
+                authToggleText.textContent = "Already have an account?";
+                authToggleLink.textContent = 'Login';
+                emailField.style.display = 'block';
+            }
+        });
+
+        // Authentication process
+        authButton.addEventListener('click', function() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!username || !password) {
+                alert('Please enter both username and password.');
+                return;
+            }
+            
+            if (!isLoginMode) {
+                const email = emailInput.value.trim();
+                if (!email) {
+                    alert('Please enter your email address.');
+                    return;
+                }
+            }
+            
+            // Connect to WebSocket first
+            connectToWebSocket(function() {
+                // After connection, send auth data
+                const authData = {
+                    type: isLoginMode ? 'login' : 'register',
+                    username: username,
+                    password: password
+                };
+                
+                if (!isLoginMode) {
+                    authData.email = emailInput.value.trim();
+                }
+                
+                socket.send(JSON.stringify(authData));
+            });
+        });
+
+        // Connect to WebSocket server
+        function connectToWebSocket(callback) {
+            socket = new WebSocket('ws://localhost:8765');
+            
+            socket.onopen = function(e) {
+                statusLight.classList.add('online');
+                statusText.textContent = 'Connected';
+                
+                if (callback) callback();
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'auth_response') {
+                    if (data.status === 'success') {
+                        // Switch to chat mode
+                        authContainer.style.display = 'none';
+                        chatContainer.style.display = 'block';
+                    } else {
+                        alert(data.message);
+                    }
+                } else if (data.type === 'chat_message') {
+                    addMessage(data.message, data.from === 'client');
+                }
+            };
+            
+            socket.onclose = function(event) {
+                statusLight.classList.remove('online');
+                statusText.textContent = 'Disconnected';
+                authContainer.style.display = 'block';
+                chatContainer.style.display = 'none';
+            };
+            
+            socket.onerror = function(error) {
+                statusLight.classList.remove('online');
+                statusText.textContent = 'Error';
+                alert('WebSocket Error: Could not connect to server.');
+            };
+        }
+
+        // Add message to chat
+        function addMessage(message, isClient = true) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${isClient ? 'client-message' : 'server-message'}`;
+            messageElement.textContent = isClient ? `You: ${message}` : `Server: ${message}`;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Send chat message
+        sendButton.addEventListener('click', function() {
+            const message = messageInput.value.trim();
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'chat_message',
+                    message: message
+                }));
+                addMessage(message, true);
+                messageInput.value = '';
+            }
+        });
+
+        // Send message on Enter key
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendButton.click();
+            }
+        });
+    </script>
+</body>
+</html>
