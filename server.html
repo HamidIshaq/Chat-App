@@ -177,16 +177,28 @@
             };
 
             socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'log') {
-                    addLog(data.message);
-                } else if (data.type === 'message') {
-                    addMessage(data.message, data.from === 'client');
-                } else if (data.type === 'status') {
-                    if (data.client_connected) {
-                        addLog(`Client connected: ${data.client_address}`);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('WebSocket message received:', data); // Debug log
+                    if (data.type === 'log') {
+                        addLog(data.message);
+                    } else if (data.type === 'message') {
+                        // Ensure username and message are present
+                        const username = data.username || 'Unknown';
+                        const message = data.message || '';
+                        addMessage(`${username}: ${message}`, true);
+                    } else if (data.type === 'status') {
+                        if (data.client_connected) {
+                            addLog(`Client connected: ${data.client_address}`);
+                        } else {
+                            addLog(`Client disconnected: ${data.client_address}`);
+                        }
+                    } else {
+                        addLog(`Unknown message type: ${data.type}`);
                     }
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error, 'Raw data:', event.data);
+                    addLog(`Error parsing message: ${error.message}`);
                 }
             };
 
@@ -201,7 +213,8 @@
             };
 
             socket.onerror = function(error) {
-                addLog('WebSocket Error: ' + error.message);
+                addLog('WebSocket Error: Unable to connect');
+                console.error('WebSocket error:', error);
             };
         }
 
@@ -218,7 +231,7 @@
                     }
                 })
                 .catch(err => {
-                    addLog('Error: ' + err.message);
+                    addLog('Error starting server: ' + err.message);
                 });
         });
 
@@ -234,7 +247,7 @@
                     }
                 })
                 .catch(err => {
-                    addLog('Error: ' + err.message);
+                    addLog('Error stopping server: ' + err.message);
                 });
         });
 

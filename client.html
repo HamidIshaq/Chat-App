@@ -260,6 +260,7 @@
             
             socket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
+                console.log('WebSocket message received:', data); // Debug log
                 
                 if (data.type === 'auth_response') {
                     if (data.status === 'success') {
@@ -270,7 +271,10 @@
                         alert(data.message);
                     }
                 } else if (data.type === 'chat_message') {
-                    addMessage(data.message, data.from === 'client');
+                    // Only display server messages or non-self client messages
+                    if (data.from !== 'client') {
+                        addMessage(data.message, false);
+                    }
                 }
             };
             
@@ -305,7 +309,7 @@
                     type: 'chat_message',
                     message: message
                 }));
-                addMessage(message, true);
+                addMessage(message, true); // Display sent message locally
                 messageInput.value = '';
             }
         });

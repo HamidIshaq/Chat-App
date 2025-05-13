@@ -59,11 +59,19 @@ async def websocket_handler(websocket, path):
     await bridge_handler(websocket, path)
 
 def start_websocket_server():
+    # Create a new event loop for this thread
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    start_server = websockets.serve(websocket_handler, "localhost", 8765)
-    loop.run_until_complete(start_server)
-    loop.run_forever()
+    try:
+        # Start the WebSocket server
+        server = websockets.serve(websocket_handler, "localhost", 8765)
+        loop.run_until_complete(server)
+        print("WebSocket server started on ws://localhost:8765")
+        loop.run_forever()
+    except Exception as e:
+        print(f"WebSocket server error: {e}")
+    finally:
+        loop.close()
 
 if __name__ == "__main__":
     if not os.path.exists("server.html"):
